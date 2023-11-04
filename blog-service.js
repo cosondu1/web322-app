@@ -1,6 +1,3 @@
-const blogService = require('./blog-service.js');
-
-
 const fs = require('fs');
 
 // Globally declared arrays
@@ -44,6 +41,17 @@ function getPublishedPosts() {
     });
 }
 
+function getPublishedPostsByCategory(category) {
+    return new Promise((resolve, reject) => {
+        const publishedPostsByCategory = posts.filter(post => post.published && post.category == category);
+        if(publishedPostsByCategory.length > 0) {
+            resolve(publishedPostsByCategory);
+        } else {
+            reject('No results returned');
+        }
+    });
+}
+
 function getCategories() {
     return new Promise((resolve, reject) => {
         if(categories.length > 0) {
@@ -53,21 +61,24 @@ function getCategories() {
         }
     });
 }
-
 function addPost(postData) {
     return new Promise((resolve) => {
-
         if (postData.published === undefined) {
             postData.published = false;
         } else {
             postData.published = true;
         }
         
+        // Add the postDate property
+        const date = new Date();
+        postData.postDate = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+        
         postData.id = posts.length + 1;
         posts.push(postData);
         resolve(postData);
     });
 }
+
 
 function getPostsByCategory(category) {
     return new Promise((resolve, reject) => {
@@ -93,7 +104,7 @@ function getPostsByMinDate(minDateStr) {
 
 function getPostById(id) {
     return new Promise((resolve, reject) => {
-        const post = posts.find(p => p.id == id); 
+        const post = posts.find(p => p.id == id);
         if (post) {
             resolve(post);
         } else {
@@ -106,6 +117,7 @@ module.exports = {
     initialize,
     getAllPosts,
     getPublishedPosts,
+    getPublishedPostsByCategory,
     getCategories,
     getPostsByCategory,  
     getPostsByMinDate,   

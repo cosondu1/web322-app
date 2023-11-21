@@ -6,7 +6,7 @@
 * 
 *  Name: Chidera Osondu Student ID: 174098210  Date: Friday Nov 20th
 *
-*  Online (Cyclic) Link: https://extinct-tutu-ray.cyclic.cloud/blog
+*  Online (Cyclic) Link: https://extinct-tutu-ray.cyclic.cloud/
 *
 ********************************************************************************/ 
 

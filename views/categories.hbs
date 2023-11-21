@@ -9,6 +9,7 @@
                     <tr>
                         <th>Category ID</th>
                         <th>Category Name</th>
+                        <th></th> <!-- Empty column for the "remove" button -->
                     </tr>
                 </thead>
                 <tbody>
@@ -16,6 +17,9 @@
                     <tr>
                         <td><a href="/posts?category={{this.id}}">{{this.id}}</a></td>
                         <td><a href="/posts?category={{this.id}}">{{this.name}}</a></td>
+                        <td>
+                            <a href="/categories/delete/{{this.id}}" class="btn btn-danger">Remove</a>
+                        </td>
                     </tr>
                     {{/each}}
                 </tbody>
@@ -24,8 +28,8 @@
 
     </div>
      {{#unless categories}}
-  <div class="col-md-12 text-center">
-    <strong>{{message}}</strong>
-  </div>
-  {{/unless}}
+        <div class="col-md-12 text-center">
+            <strong>{{message}}</strong>
+        </div>
+    {{/unless}}
 </div>

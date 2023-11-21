@@ -13,6 +13,7 @@
                         <th>Post Date</th>
                         <th>Category</th>
                         <th>Published</th>
+                        <th></th> <!-- New column for remove links -->
                     </tr>
                 </thead>
                 <tbody>
@@ -23,6 +24,9 @@
                         <td>{{this.postDate}}</td>
                         <td><a href="/posts?category={{this.category}}">{{this.category}}</a></td>
                         <td>{{this.published}}</td>
+                        <td>
+                            <a href="/post/delete/{{this.id}}" class="btn btn-danger">Remove</a>
+                        </td>
                     </tr>
                     {{/each}}
                 </tbody>

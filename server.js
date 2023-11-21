@@ -4,9 +4,9 @@
 *  of this assignment has been copied manually or electronically from any other source 
 *  (including 3rd party web sites) or distributed to other students.
 * 
-*  Name: Chidera Osondu Student ID: 174098210  Date: Friday Nov 2nd
+*  Name: Chidera Osondu Student ID: 174098210  Date: Friday Nov 3rd
 *
-*  Online (Cyclic) Link: https://extinct-tutu-ray.cyclic.cloud/
+*  Online (Cyclic) Link: https://extinct-tutu-ray.cyclic.cloud/blog
 *
 ********************************************************************************/ 
 
@@ -16,7 +16,6 @@ var path = require('path');
 
 const blogData = require("./blog-service");
 
-// Added requires for the new libraries
 const multer = require("multer");
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
@@ -25,8 +24,6 @@ const exphbs = require('express-handlebars');
 const stripJs = require('strip-js');
 
 
-
-// Setting up Handlebars as the view engine
 app.engine('.hbs', exphbs.engine({
     extname: '.hbs',
     helpers: {
@@ -47,13 +44,11 @@ app.engine('.hbs', exphbs.engine({
         safeHTML: function(context){
             return stripJs(context);
         }
-        // Add other custom helpers here
     }
 }));
 
 app.set('view engine', '.hbs');
 
-// Setting up the Cloudinary configuration
 cloudinary.config({
     cloud_name: 'dubq2lwcs',
     api_key: '666723166893873',
@@ -61,7 +56,6 @@ cloudinary.config({
     secure: true
 });
 
-// Creating the upload variable without disk storage
 const upload = multer();
 
 var HTTP_PORT = process.env.PORT || 8080;
@@ -86,33 +80,38 @@ app.get('/about', (req, res) => {
     res.render('about');
 });
 
+app.get('/posts/add', async (req, res) => {
+    try {
+        const categories = await blogData.getCategories();
+        res.render('addPost', { categories });
+    } catch (err) {
+        res.render('addPost', { categories: [] });
+    }
+});
+
+app.get('/categories/add', (req, res) => {
+    res.render('addCategory');
+});
 
 app.get('/blog', async (req, res) => {
 
-    // Declare an object to store properties for the view
     let viewData = {};
 
     try{
-
-        // declare empty array to hold "post" objects
         let posts = [];
 
-        // if there's a "category" query, filter the returned posts by category
         if(req.query.category){
-            // Obtain the published "posts" by category
+        
             posts = await blogData.getPublishedPostsByCategory(req.query.category);
         }else{
-            // Obtain the published "posts"
+           
             posts = await blogData.getPublishedPosts();
         }
 
-        // sort the published posts by postDate
         posts.sort((a,b) => new Date(b.postDate) - new Date(a.postDate));
 
-        // get the latest post from the front of the list (element 0)
         let post = posts[0]; 
 
-        // store the "posts" and "post" data in the viewData object (to be passed to the view)
         viewData.posts = posts;
         viewData.post = post;
 
@@ -121,26 +120,28 @@ app.get('/blog', async (req, res) => {
     }
 
     try{
-        // Obtain the full list of "categories"
+        
         let categories = await blogData.getCategories();
 
-        // store the "categories" data in the viewData object (to be passed to the view)
         viewData.categories = categories;
     }catch(err){
         viewData.categoriesMessage = "no results"
     }
       console.log(viewData, "<==view data")
-    // render the "blog" view with all of the data (viewData)
+
     res.render("blog", {data: viewData})
 
 });
 
 app.get('/posts', (req, res) => {
-    
     if (req.query.category) {
         blogService.getPostsByCategory(req.query.category)
             .then(data => {
-                res.render("posts", { posts: data });
+                if (data.length > 0) {
+                    res.render("posts", { posts: data });
+                } else {
+                    res.render("posts", { message: "no results" });
+                }
             })
             .catch(err => {
                 res.render("posts", { message: "no results" });
@@ -148,7 +149,11 @@ app.get('/posts', (req, res) => {
     } else if (req.query.minDate) {
         blogService.getPostsByMinDate(req.query.minDate)
             .then(data => {
-                res.render("posts", { posts: data });
+                if (data.length > 0) {
+                    res.render("posts", { posts: data });
+                } else {
+                    res.render("posts", { message: "no results" });
+                }
             })
             .catch(err => {
                 res.render("posts", { message: "no results" });
@@ -156,7 +161,11 @@ app.get('/posts', (req, res) => {
     } else {
         blogService.getAllPosts()
             .then(data => {
-                res.render("posts", { posts: data });
+                if (data.length > 0) {
+                    res.render("posts", { posts: data });
+                } else {
+                    res.render("posts", { message: "no results" });
+                }
             })
             .catch(err => {
                 res.render("posts", { message: "no results" });
@@ -164,26 +173,69 @@ app.get('/posts', (req, res) => {
     }
 });
 
-// /post/value route for getting a post by its ID
+
+app.post('/posts/add', upload.single('featureImage'), async (req, res) => {
+    try {
+        let uploaded = await upload(req);
+        req.body.featureImage = uploaded.url;
+
+        await blogService.addPost(req.body);
+        res.redirect('/posts');
+    } catch (error) {
+        console.error("Error uploading image:", error);
+        res.status(500).send("Error uploading image");
+    }
+});
+
+app.post('/categories/add', async (req, res) => {
+    try {
+        await blogService.addCategory(req.body);
+        res.redirect('/categories');
+    } catch (error) {
+        res.status(500).send("Unable to Add Category");
+    }
+});
+
+app.get('/posts/delete/:id', async (req, res) => {
+    try {
+        await blogService.deletePostById(req.params.id);
+        res.redirect('/posts');
+    } catch (error) {
+        res.status(500).send("Unable to Remove Post / Post not found");
+    }
+});
+
+app.get('/categories/delete/:id', async (req, res) => {
+    try {
+        await blogService.deleteCategoryById(req.params.id);
+        res.redirect('/categories');
+    } catch (error) {
+        res.status(500).send("Unable to Remove Category / Category not found");
+    }
+});
+
 app.get('/post/:id', (req, res) => {
     blogService.getPostById(req.params.id)
         .then(data => res.json(data))
         .catch(err => res.json({ message: err }));
 });
 
-app.get('/categories', (req, res) => {
-    const categoriesData = [
-        {id: 1, name: "Technology"},
-        {id: 2, name: "Gaming"},
-        {id: 3, name: "Fashion"},
-        {id: 4, name: "Education"},
-        {id: 5, name: "Wellness"}
-    ];
-    res.render("categories", {categories: categoriesData});
+app.get('/categories', async (req, res) => {
+    try {
+        const categories = await blogService.getCategories();
+
+        if (categories.length > 0) {
+            res.render("categories", { categories: categories });
+        } else {
+            res.render("categories", { message: "no results" });
+        }
+    } catch (err) {
+        res.render("categories", { message: "error retrieving categories" });
+    }
 });
 
 
-app.get('/addpost', (req, res) => {
+app.get('/addPost', (req, res) => {
     res.render('addPost');  
 });
 
@@ -216,15 +268,13 @@ app.post('/posts/add', upload.single("featureImage"), async (req, res) => {
         let uploaded = await upload(req);
         req.body.featureImage = uploaded.url;
 
-        // TODO: Process the req.body and add it as a new Blog Post before redirecting to /posts
-
     } catch (error) {
         console.error("Error uploading image:", error);
         res.status(500).send("Error uploading image");
     }
 });
 
-// Catch-all for non-matching routes
+
 app.use((req, res, next) => {
     res.status(404).render('404');
 });
@@ -241,27 +291,20 @@ blogService.initialize()
 
     app.get('/blog/:id', async (req, res) => {
 
-        // Declare an object to store properties for the view
         let viewData = {};
     
         try{
-    
-            // declare empty array to hold "post" objects
+
             let posts = [];
     
-            // if there's a "category" query, filter the returned posts by category
             if(req.query.category){
-                // Obtain the published "posts" by category
+               
                 posts = await blogData.getPublishedPostsByCategory(req.query.category);
             }else{
-                // Obtain the published "posts"
                 posts = await blogData.getPublishedPosts();
             }
     
-            // sort the published posts by postDate
             posts.sort((a,b) => new Date(b.postDate) - new Date(a.postDate));
-    
-            // store the "posts" and "post" data in the viewData object (to be passed to the view)
             viewData.posts = posts;
     
         }catch(err){
@@ -269,22 +312,24 @@ blogService.initialize()
         }
     
         try{
-            // Obtain the post by "id"
             viewData.post = await blogData.getPostById(req.params.id);
         }catch(err){
             viewData.message = "no results"; 
         }
     
         try{
-            // Obtain the full list of "categories"
             let categories = await blogData.getCategories();
     
-            // store the "categories" data in the viewData object (to be passed to the view)
             viewData.categories = categories;
         }catch(err){
             viewData.categoriesMessage = "no results"
         }
     
-        // render the "blog" view with all of the data (viewData)
         res.render("blog", {data: viewData})
     });
+
+app.get('/post/delete/:id', (req, res) => {
+    blogService.deletePostById(req.params.id)
+        .then(() => res.redirect('/posts'))
+        .catch(() => res.status(500).send('Unable to Remove Post / Post not found'));
+});

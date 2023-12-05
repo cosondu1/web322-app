@@ -1,10 +1,10 @@
 /*********************************************************************************
-*  WEB322 – Assignment 05
+*  WEB322 – Assignment 06
 *  I declare that this assignment is my own work in accordance with Seneca  Academic Policy.  No part 
 *  of this assignment has been copied manually or electronically from any other source 
 *  (including 3rd party web sites) or distributed to other students.
 * 
-*  Name: Chidera Osondu Student ID: 174098210  Date: Friday Nov 20th
+*  Name: Chidera Osondu Student ID: 174098210  Date: Monday December 
 *
 *  Online (Cyclic) Link: https://extinct-tutu-ray.cyclic.cloud/
 *
@@ -13,39 +13,37 @@
 var express = require("express");
 var app = express();
 var path = require('path');
-
 const blogData = require("./blog-service");
-
+var clientSessions = require("client-sessions");
 const multer = require("multer");
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
 const exphbs = require('express-handlebars');
+const blogService = require('./blog-service.js');
+const authData = require('./auth-service.js');
+const bcrypt = require('bcryptjs');
+
 
 const stripJs = require('strip-js');
 
+app.engine(".hbs", exphbs.engine({
+    extname: ".hbs",
+    defaultLayout: "main",
 
-app.engine('.hbs', exphbs.engine({
-    extname: '.hbs',
     helpers: {
-        navLink: function(url, options){
-            return '<li' + 
-                ((url == app.locals.activeRoute) ? ' class="active" ' : '') + 
-                '><a href="' + url + '">' + options.fn(this) + '</a></li>';
-        },
-        equal: function(lvalue, rvalue, options) {
-            if (arguments.length < 3)
-                throw new Error("Handlebars Helper 'equal' needs 2 parameters");
-            if (lvalue != rvalue) {
-                return options.inverse(this);
-            } else {
-                return options.fn(this);
+        navLink: (url, options) => `<li${url === app.locals.activeRoute ? ' class="active"' : ''}><a href="${url}">${options.fn(this)}</a></li>`,
+
+        equal: (lvalue, rvalue, options) => {
+            if (arguments.length < 3) {
+                throw new Error("Handlebars Helper equal needs 2 parameters");
             }
+            return lvalue !== rvalue ? options.inverse(this) : options.fn(this);
         },
-        safeHTML: function(context){
-            return stripJs(context);
-        }
-    }
+
+        safeHTML: (context) => stripJs(context),
+    },
 }));
+
 
 app.set('view engine', '.hbs');
 
@@ -61,15 +59,32 @@ const upload = multer();
 var HTTP_PORT = process.env.PORT || 8080;
 
 app.use(express.static('public'));
+app.use(express.urlencoded({ extended: true }));
 
 const blogService = require('./blog-service.js');
 
-app.use(function(req,res,next){
-    let route = req.path.substring(1);
-    app.locals.activeRoute = "/" + (isNaN(route.split('/')[1]) ? route.replace(/\/(?!.*)/, "") : route.replace(/\/(.*)/, ""));
-    app.locals.viewingCategory = req.query.category;
+// clientSessions middleware setup
+app.use(clientSessions({
+    cookieName: "session",
+    secret: process.env.SESSION_SECRET,
+    duration: 24 * 60 * 60 * 1000,
+    activeDuration: 5 * 60 * 1000
+}));
+
+// Middleware to make the session object available in all views
+app.use(function(req, res, next) {
+    res.locals.session = req.session;
     next();
 });
+
+// ensureLogin middleware
+function ensureLogin(req, res, next) {
+    if (!req.session.user) {
+        res.redirect("/login");
+    } else {
+        next();
+    }
+}
 
 app.get('/', (req, res) => {
     res.redirect('/blog');
@@ -279,57 +294,68 @@ app.use((req, res, next) => {
     res.status(404).render('404');
 });
 
-blogService.initialize()
+app.post("/register", async (req, res) => {
+    try {
+        await authData.registerUser(req.body);
+        req.session.successMessage = "User created";
+        res.redirect("/login");
+    } catch (err) {
+        res.render("register", {
+            errorMessage: err,
+            userName: req.body.userName,
+        });
+    }
+});
+
+app.get("/logout", (req, res) => {
+    req.session.reset(); 
+    res.redirect("/"); 
+});
+
+app.get("/userHistory", ensureLogin, (req, res) => {
+    res.render("userHistory");
+});
+
+
+app.post("/login", async (req, res) => {
+    try {
+        req.body.userAgent = req.get("User-Agent");
+
+        const user = await authData.checkUser(req.body);
+
+        req.session.user = {
+            userName: user.userName,
+            email: user.email,
+            loginHistory: user.loginHistory,
+        };
+        res.redirect("/posts");
+    } catch (err) {
+        res.render("login", { errorMessage: err, userName: req.body.userName });
+    }
+});
+
+app.get("/logout", (req, res) => {
+    req.session.reset(); 
+    res.redirect("/"); 
+});
+
+app.get("/userHistory", ensureLogin, (req, res) => {
+    res.render("userHistory");
+});
+
+
+app.use((req, res) => {
+    res.status(404).render("404");
+});
+
+blogService
+    .initialize()
+    .then(authData.initialize)
     .then(() => {
-        app.listen(8080, () => {
-            console.log('Server is running on http://localhost:8080');
+        app.listen(HTTP_PORT, () => {
+            console.log(`Server listening on port ${HTTP_PORT}`);
         });
     })
-    .catch(err => {
-        console.error('Failed to initialize blog service:', err);
+    .catch((err) => {
+        console.log("Unable to start server:", err);
     });
-
-    app.get('/blog/:id', async (req, res) => {
-
-        let viewData = {};
-    
-        try{
-
-            let posts = [];
-    
-            if(req.query.category){
-               
-                posts = await blogData.getPublishedPostsByCategory(req.query.category);
-            }else{
-                posts = await blogData.getPublishedPosts();
-            }
-    
-            posts.sort((a,b) => new Date(b.postDate) - new Date(a.postDate));
-            viewData.posts = posts;
-    
-        }catch(err){
-            viewData.message = "no results";
-        }
-    
-        try{
-            viewData.post = await blogData.getPostById(req.params.id);
-        }catch(err){
-            viewData.message = "no results"; 
-        }
-    
-        try{
-            let categories = await blogData.getCategories();
-    
-            viewData.categories = categories;
-        }catch(err){
-            viewData.categoriesMessage = "no results"
-        }
-    
-        res.render("blog", {data: viewData})
-    });
-
-app.get('/post/delete/:id', (req, res) => {
-    blogService.deletePostById(req.params.id)
-        .then(() => res.redirect('/posts'))
-        .catch(() => res.status(500).send('Unable to Remove Post / Post not found'));
-});
